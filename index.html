@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><base href="https://d16ilfvy4mv02r.cloudfront.net/workspaces/6AS6pBQ9gyaRnhkAng5XOb0fZwBKRY2S/fb46c107-9d7f-4dc6-8dcc-4ad621264014/files/">
+<!--
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  INSTRUÇÕES DE CONFIGURAÇÃO DO FIREBASE                         ║
+  ║                                                                  ║
+  ║  Para que os dados sejam compartilhados entre todos os          ║
+  ║  usuários, siga os passos abaixo:                               ║
+  ║                                                                  ║
+  ║  1. Acesse https://console.firebase.google.com                  ║
+  ║  2. Clique em "Criar um projeto" e dê um nome                   ║
+  ║  3. No menu lateral, clique em "Realtime Database"              ║
+  ║  4. Clique em "Criar banco de dados"                            ║
+  ║     → Escolha "Iniciar no modo de teste" (30 dias gratuito)     ║
+  ║  5. No menu lateral, clique em "Visão geral do projeto" (⚙️)    ║
+  ║     → Adicionar app → Web (</>) → registre o app               ║
+  ║  6. Copie o objeto "firebaseConfig" que aparecerá               ║
+  ║  7. Cole os valores no bloco FIREBASE CONFIG abaixo            ║
+  ║  8. Pronto! Todos os usuários verão os mesmos dados.           ║
+  ╚══════════════════════════════════════════════════════════════════╝
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EMEF Antônio Barroso Braga - Ocorrências</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #1a3a5c 0%, #0d2340 100%);
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .container {
+    max-width: 1500px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+
+  /* HEADER */
+  .header {
+    background: linear-gradient(135deg, #1a3a5c 0%, #0d2340 100%);
+    padding: 22px 30px;
+    display: flex; align-items: center; gap: 20px;
+    border-bottom: 5px solid #f5c800;
+  }
+  .header img { width: 86px; height: 86px; object-fit: contain; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4)); }
+  .header-text h1 { color: #f5c800; font-size: 1.45rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+  .header-text h2 { color: #fff; font-size: 0.95rem; font-weight: 400; margin-top: 4px; }
+  .header-text p  { color: #aac8e8; font-size: 0.8rem; margin-top: 2px; }
+
+  /* STATUS BAR */
+  #statusBar {
+    background: #f0f4fa;
+    padding: 7px 24px;
+    border-bottom: 1px solid #dce3ef;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 0.78rem; color: #4a6a8c;
+  }
+  #statusDot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #ccc; flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  #statusDot.connected    { background: #1a8c3a; }
+  #statusDot.saving       { background: #f5c800; }
+  #statusDot.disconnected { background: #c0392b; }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 28px; right: 28px;
+    padding: 12px 22px; border-radius: 10px;
+    font-size: 0.84rem; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 9999; transform: translateY(80px); opacity: 0;
+    transition: all 0.4s ease; display: flex; align-items: center; gap: 8px;
+  }
+  #toast.show    { transform: translateY(0); opacity: 1; }
+  #toast.success { background: #1a8c3a; color: #fff; }
+  #toast.info    { background: #1a3a5c; color: #f5c800; }
+  #toast.warning { background: #c0392b; color: #fff; }
+
+  /* LOADING overlay */
+  #loadingOverlay {
+    position: fixed; inset: 0;
+    background: rgba(10,20,40,0.7);
+    z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+  }
+  #loadingOverlay .spinner {
+    width: 50px; height: 50px;
+    border: 5px solid #f5c800;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  #loadingOverlay p { color: #fff; font-size: 0.95rem; font-weight: 600; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* COL CONFIG */
+  .col-config {
+    background: #fffbe6; padding: 12px 24px;
+    border-bottom: 1px solid #f5c800;
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+  }
+  .col-config span { font-size: 0.78rem; color: #7a5a00; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .col-config input[type="text"] {
+    padding: 5px 9px; border: 1.5px solid #f5c800; border-radius: 7px;
+    font-size: 0.82rem; color: #1a3a5c; background: #fff; width: 145px; outline: none;
+  }
+  .col-config input[type="text"]:focus { border-color: #1a3a5c; }
+
+  /* TOOLBAR */
+  .toolbar {
+    background: #f0f4fa; padding: 11px 24px;
+    display: flex; flex-wrap: wrap; gap: 9px; align-items: center;
+    border-bottom: 1px solid #dce3ef;
+  }
+  .toolbar label { font-size: 0.83rem; color: #1a3a5c; font-weight: 600; }
+  .toolbar input[type="text"], .toolbar select {
+    padding: 6px 11px; border: 1.5px solid #b0c4de; border-radius: 8px;
+    font-size: 0.83rem; color: #1a3a5c; background: #fff; outline: none;
+  }
+  .toolbar input[type="text"]:focus, .toolbar select:focus { border-color: #f5c800; }
+
+  .btn {
+    padding: 7px 14px; border: none; border-radius: 8px;
+    font-size: 0.8rem; font-weight: 700; cursor: pointer;
+    transition: all 0.2s; display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  }
+  .btn-primary { background: #1a3a5c; color: #f5c800; }
+  .btn-primary:hover { background: #0d2340; transform: translateY(-1px); }
+  .btn-success { background: #1a8c3a; color: #fff; }
+  .btn-success:hover { background: #156b2d; transform: translateY(-1px); }
+  .btn-danger  { background: #c0392b; color: #fff; }
+  .btn-danger:hover  { background: #96281b; transform: translateY(-1px); }
+  .btn-yellow  { background: #f5c800; color: #1a3a5c; }
+  .btn-yellow:hover  { background: #d4ac00; transform: translateY(-1px); }
+  .btn-purple  { background: #6c3483; color: #fff; }
+  .btn-purple:hover  { background: #5b2c6f; transform: translateY(-1px); }
+  .btn-teal    { background: #148a82; color: #fff; }
+  .btn-teal:hover    { background: #0e6b64; transform: translateY(-1px); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; padding: 18px 22px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+
+  thead tr.tr-main { background: linear-gradient(135deg, #1a3a5c, #0d2340); }
+  thead tr.tr-main th {
+    color: #f5c800; font-weight: 700; padding: 11px 10px;
+    text-align: center; text-transform: uppercase;
+    font-size: 0.71rem; letter-spacing: 0.4px;
+    white-space: nowrap; border: 1px solid #2a4a6c;
+  }
+  thead tr.tr-main th.th-name { text-align: left; }
+
+  thead tr.tr-sub th {
+    background: #dce8f8; color: #1a3a5c;
+    font-size: 0.66rem; font-weight: 700;
+    padding: 5px 7px; text-align: center;
+    border: 1px solid #b8cce0; text-transform: uppercase; letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+
+  .band-c2 { background: #e8f4e8 !important; }
+  .band-c3 { background: #fdf3e3 !important; }
+  .band-c4 { background: #fce8e8 !important; }
+
+  tbody tr { transition: background 0.15s; }
+  tbody tr:nth-child(even) td { background: #f7f9fd; }
+  tbody tr:hover td { background: #eaf1fb; }
+
+  tbody td {
+    padding: 7px 8px; vertical-align: middle;
+    text-align: center; border: 1px solid #dde4ef;
+  }
+  tbody td.td-name { text-align: left; background: #fff; }
+  tbody tr:nth-child(even) td.td-name { background: #f7f9fd; }
+  tbody tr:hover td.td-name { background: #eaf1fb; }
+
+  tbody td.bc2 { background: #f2faf2; }
+  tbody td.bc3 { background: #fdf8ee; }
+  tbody td.bc4 { background: #fdf1f1; }
+  tbody tr:hover td.bc2 { background: #e2f5e2; }
+  tbody tr:hover td.bc3 { background: #faf0d8; }
+  tbody tr:hover td.bc4 { background: #fae2e2; }
+
+  .name-input {
+    border: none; background: transparent;
+    font-size: 0.85rem; font-weight: 600; color: #1a3a5c;
+    width: 100%; min-width: 130px; outline: none;
+    padding: 2px 4px; border-bottom: 1.5px solid transparent;
+    transition: border-color 0.2s;
+  }
+  .name-input:focus { border-bottom-color: #f5c800; background: #fffbe6; border-radius: 4px 4px 0 0; }
+
+  .turma-select {
+    border: none; background: transparent;
+    font-size: 0.78rem; font-weight: 700; color: #1a3a5c;
+    outline: none; cursor: pointer;
+    padding: 2px 4px;
+    border-bottom: 1.5px solid transparent;
+    border-radius: 4px 4px 0 0;
+    transition: border-color 0.2s, background 0.2s;
+    width: 100%; max-width: 110px;
+  }
+  .turma-select:focus { border-bottom-color: #f5c800; background: #fffbe6; }
+
+  .custom-check {
+    appearance: none; -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border: 2.5px solid #b0c4de; border-radius: 6px;
+    cursor: pointer; background: #fff;
+    transition: all 0.2s; position: relative; display: inline-block;
+  }
+  .custom-check:checked { background: #1a8c3a; border-color: #1a8c3a; }
+  .custom-check:checked::after {
+    content: '✓'; position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #fff; font-size: 13px; font-weight: 900; line-height: 1;
+  }
+  .custom-check:hover:not(:checked) { border-color: #1a3a5c; background: #eaf1fb; }
+
+  .prof-input, .date-input {
+    border: none; background: transparent;
+    outline: none; padding: 2px 4px;
+    border-bottom: 1.5px solid transparent;
+    transition: border-color 0.2s, background 0.2s;
+    border-radius: 4px 4px 0 0;
+    width: 100%;
+  }
+  .prof-input {
+    font-size: 0.75rem; color: #2a5a3a; font-style: italic;
+    min-width: 110px;
+  }
+  .date-input {
+    font-size: 0.74rem; color: #3a4a6c;
+    min-width: 88px; text-align: center;
+  }
+  .prof-input::placeholder { color: #b0bece; }
+  .date-input::placeholder { color: #b0bece; }
+  .prof-input:focus  { border-bottom-color: #1a8c3a; background: #edfaf1; }
+  .date-input:focus  { border-bottom-color: #3a6cc0; background: #eaf1fb; }
+
+  .is-checked .prof-input { font-weight: 700; font-style: normal; color: #1a5c3a; }
+  .is-checked .date-input { font-weight: 700; color: #1a3a8c; }
+
+  .total-badge {
+    display: inline-block; min-width: 30px;
+    padding: 4px 10px; border-radius: 20px;
+    font-weight: 800; font-size: 0.86rem; text-align: center;
+  }
+  .total-0 { background: #e8eef6; color: #7a90aa; }
+  .total-1 { background: #fff3cd; color: #856404; }
+  .total-2 { background: #ffe0b2; color: #c05000; }
+  .total-3 { background: #ffccbc; color: #b71c1c; }
+
+  .del-btn {
+    background: none; border: none; color: #c0392b;
+    cursor: pointer; font-size: 1rem; padding: 3px 7px;
+    border-radius: 5px; transition: background 0.2s;
+  }
+  .del-btn:hover { background: #fdecea; }
+
+  /* SUMMARY */
+  .summary {
+    background: linear-gradient(135deg, #f0f4fa, #e8eef6);
+    margin: 0 22px 20px; border-radius: 10px;
+    padding: 14px 20px; border: 1px solid #dce3ef;
+  }
+  .summary h3 { color: #1a3a5c; font-size: 0.88rem; font-weight: 700; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .summary-card {
+    background: #fff; border-radius: 8px; padding: 10px 16px;
+    border-left: 4px solid #1a3a5c; flex: 1; min-width: 100px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  }
+  .summary-card .sc-label { font-size: 0.68rem; color: #7a90aa; font-weight: 600; text-transform: uppercase; }
+  .summary-card .sc-val   { font-size: 1.4rem; font-weight: 800; color: #1a3a5c; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(10,20,40,0.6); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 14px; padding: 26px 30px;
+    width: 380px; max-width: 95vw;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3); border-top: 5px solid #f5c800;
+  }
+  .modal h3 { color: #1a3a5c; font-size: 1rem; margin-bottom: 14px; font-weight: 800; }
+  .modal label { display: block; font-size: 0.79rem; color: #4a6a8c; font-weight: 600; margin-bottom: 4px; margin-top: 11px; }
+  .modal input, .modal select {
+    width: 100%; padding: 8px 12px;
+    border: 1.5px solid #b0c4de; border-radius: 8px;
+    font-size: 0.87rem; color: #1a3a5c; outline: none;
+  }
+  .modal input:focus, .modal select:focus { border-color: #f5c800; }
+  .modal-btns { display: flex; gap: 10px; margin-top: 18px; justify-content: flex-end; }
+
+  /* FOOTER */
+  .footer {
+    background: #1a3a5c; color: #aac8e8;
+    text-align: center; font-size: 0.74rem;
+    padding: 11px; border-top: 3px solid #f5c800;
+  }
+
+  /* PRINT */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .container { box-shadow: none; border-radius: 0; }
+    .toolbar, .col-config, #toast, .modal-overlay, #statusBar { display: none !important; }
+    .del-btn { display: none; }
+    .name-input, .prof-input, .date-input { border-bottom: none !important; background: transparent !important; }
+  }
+  .sev-select{margin-top:4px;font-size:0.7rem;border:1px solid #b0c4de;border-radius:6px;padding:2px 4px;font-weight:700;}
+  .sev-select.grave{background:#b71c1c;color:#fff;border-color:#b71c1c;}
+  .tag-susp{display:inline-block;margin-top:4px;background:#b71c1c;color:#fff;font-size:0.65rem;font-weight:800;padding:2px 6px;border-radius:6px;}
+  .tag-reinc{display:inline-block;margin-top:4px;margin-left:3px;background:#6c3483;color:#fff;font-size:0.65rem;font-weight:800;padding:2px 6px;border-radius:6px;}
+  tr.row-susp td{background:#fdecea !important;}
+  .custom-check:disabled{opacity:.35;cursor:not-allowed;}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <p>Carregando dados...</p>
+</div>
+
+<div id="toast"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3>➕ Adicionar Aluno</h3>
+    <label>Nome do Aluno *</label>
+    <input type="text" id="modalName" placeholder="Ex: Ana Clara Silva">
+    <label>Turma do Aluno *</label>
+    <select id="modalTurma">
+      <option>1º Ano A</option><option>1º Ano B</option>
+      <option>2º Ano A</option><option>2º Ano B</option>
+      <option>3º Ano A</option><option>3º Ano B</option>
+      <option>4º Ano A</option><option>4º Ano B</option>
+      <option>5º Ano A</option><option>5º Ano B</option>
+      <option>6º Ano A</option><option>6º Ano B</option>
+      <option>7º Ano A</option><option>7º Ano B</option>
+      <option>8º Ano A</option><option>8º Ano B</option>
+      <option>9º Ano A</option><option>9º Ano B</option>
+    </select>
+    <div class="modal-btns">
+      <button class="btn btn-danger" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmAddRow()">✅ Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="suspOverlay">
+  <div class="modal" style="width:680px;">
+    <h3>⛔ Alunos Suspensos</h3>
+    <div style="max-height:60vh;overflow:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:0.82rem;text-align:center;">
+      <thead><tr style="background:#1a3a5c;color:#fff;">
+        <th style="padding:7px;text-align:left;">Aluno</th><th>Turma</th><th>Suspensões</th><th>Por 3 leves</th><th>Por grave</th><th>Tipo</th>
+      </tr></thead>
+      <tbody id="suspBody"></tbody>
+    </table>
+    </div>
+    <div class="modal-btns"><button class="btn btn-primary" onclick="fecharSuspensos()">Fechar</button></div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <img src="abb_logo-removebg-preview__1_.png" alt="Logo" onerror="this.style.display='none'">
+    <div class="header-text">
+      <h1>EMEF Antônio Barroso Braga</h1>
+      <h2>Boa Vista &nbsp;|&nbsp; Desde 1968</h2>
+      <p>Registro de Ocorrências por Aluno</p>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div id="statusBar">
+    <div id="statusDot"></div>
+    <span id="statusMsg">Conectando ao banco de dados...</span>
+  </div>
+
+  <!-- COL CONFIG -->
+  <div class="col-config">
+    <span>⚙️ Nomear colunas:</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span>Col. 1:</span>
+      <input type="text" id="col2Name" value="Atraso" oninput="updateHeaders(); scheduleRemoteSave();">
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span>Col. 2:</span>
+      <input type="text" id="col3Name" value="Falta" oninput="updateHeaders(); scheduleRemoteSave();">
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span>Col. 3:</span>
+      <input type="text" id="col4Name" value="Indisciplina" oninput="updateHeaders(); scheduleRemoteSave();">
+    </div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <label>Turma padrão:</label>
+    <select id="turmaSel" onchange="scheduleRemoteSave()">
+      <option>1º Ano A</option><option>1º Ano B</option>
+      <option>2º Ano A</option><option>2º Ano B</option>
+      <option>3º Ano A</option><option>3º Ano B</option>
+      <option>4º Ano A</option><option>4º Ano B</option>
+      <option>5º Ano A</option><option>5º Ano B</option>
+      <option>6º Ano A</option><option>6º Ano B</option>
+      <option>7º Ano A</option><option>7º Ano B</option>
+      <option>8º Ano A</option><option>8º Ano B</option>
+      <option>9º Ano A</option><option>9º Ano B</option>
+    </select>
+    <label style="margin-left:4px;">🔍 Filtrar turma:</label>
+    <select id="filtroTurma" onchange="filtrarTurma()" style="border-color:#6c3483;color:#6c3483;font-weight:700;">
+      <option value="">-- Todas --</option>
+      <option>1º Ano A</option><option>1º Ano B</option>
+      <option>2º Ano A</option><option>2º Ano B</option>
+      <option>3º Ano A</option><option>3º Ano B</option>
+      <option>4º Ano A</option><option>4º Ano B</option>
+      <option>5º Ano A</option><option>5º Ano B</option>
+      <option>6º Ano A</option><option>6º Ano B</option>
+      <option>7º Ano A</option><option>7º Ano B</option>
+      <option>8º Ano A</option><option>8º Ano B</option>
+      <option>9º Ano A</option><option>9º Ano B</option>
+    </select>
+    <button class="btn btn-primary"  onclick="openModal()">➕ Adicionar Aluno</button>
+    <button class="btn btn-yellow"   onclick="clearChecks()">🔄 Limpar Marcações</button>
+    <button class="btn btn-danger"   onclick="abrirSuspensos()">⛔ Ver Suspensos</button>
+    <button class="btn btn-teal"     onclick="window.print()">🖨️ Imprimir</button>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <table id="mainTable">
+      <thead>
+        <tr class="tr-main">
+          <th class="th-name" rowspan="2" style="min-width:148px;vertical-align:middle;">Nome do Aluno</th>
+          <th rowspan="2" style="min-width:110px;vertical-align:middle;">Turma</th>
+          <th id="th2" colspan="3" style="min-width:310px; background:#1e5c1e;">🟢 Atraso</th>
+          <th id="th3" colspan="3" style="min-width:310px; background:#7a4a00;">🟡 Falta</th>
+          <th id="th4" colspan="3" style="min-width:310px; background:#7a1a1a;">🔴 Indisciplina</th>
+          <th rowspan="2" style="min-width:100px;vertical-align:middle;">Total de<br>Ocorrências</th>
+          <th rowspan="2" style="min-width:55px;vertical-align:middle;">Ação</th>
+        </tr>
+        <tr class="tr-sub">
+          <th class="band-c2" style="width:40px;">Marcação</th>
+          <th class="band-c2" style="min-width:100px;">Data</th>
+          <th class="band-c2" style="min-width:160px;">Professor Responsável</th>
+          <th class="band-c3" style="width:40px;">Marcação</th>
+          <th class="band-c3" style="min-width:100px;">Data</th>
+          <th class="band-c3" style="min-width:160px;">Professor Responsável</th>
+          <th class="band-c4" style="width:40px;">Marcação</th>
+          <th class="band-c4" style="min-width:100px;">Data</th>
+          <th class="band-c4" style="min-width:160px;">Professor Responsável</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary">
+    <h3>📊 Resumo da Turma</h3>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="sc-label" id="sumAlunosLabel">Alunos</div>
+        <div class="sc-val" id="sumAlunos">0</div>
+      </div>
+      <div class="summary-card" style="border-left-color:#1e7a1e;">
+        <div class="sc-label" id="sumLabel2">Atrasos</div>
+        <div class="sc-val" id="sumCol2">0</div>
+      </div>
+      <div class="summary-card" style="border-left-color:#c07800;">
+        <div class="sc-label" id="sumLabel3">Faltas</div>
+        <div class="sc-val" id="sumCol3">0</div>
+      </div>
+      <div class="summary-card" style="border-left-color:#b71c1c;">
+        <div class="sc-label" id="sumLabel4">Indisciplinas</div>
+        <div class="sc-val" id="sumCol4">0</div>
+      </div>
+      <div class="summary-card" style="border-left-color:#1a3a5c;">
+        <div class="sc-label">Total Geral</div>
+        <div class="sc-val" id="sumTotal">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    EMEF Antônio Barroso Braga &nbsp;|&nbsp; Boa Vista &nbsp;|&nbsp; Sistema de Registro de Ocorrências &nbsp;|&nbsp; 2025
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  🔥 FIREBASE CONFIG — substitua pelos valores do seu projeto
+// ══════════════════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:            "AIzaSyCOHJR4pNXlOEc82iLoMPuFg8wbZI1BOp0",
+  authDomain:        "ocorrencia-cf15e.firebaseapp.com",
+  databaseURL:       "https://ocorrencia-cf15e-default-rtdb.firebaseio.com",
+  projectId:         "ocorrencia-cf15e",
+  storageBucket:     "ocorrencia-cf15e.firebasestorage.app",
+  messagingSenderId: "548316687158",
+  appId:             "1:548316687158:web:21b7e4840e8ae7a4b5a197"
+};
+// ══════════════════════════════════════════════════════════════════
+
+// Chave onde os dados ficam salvos no banco
+const DB_PATH = 'emef_ocorrencias';
+
+let rowCount = 0;
+let _loading = false;       // true enquanto carregamos dados do servidor
+let _saveTimer = null;      // debounce para salvar
+let _lastLocalChange = 0;   // timestamp da última edição local
+
+// ── Firebase init ────────────────────────────────────────────────
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const dataRef = db.ref(DB_PATH);
+
+// Monitorar conexão
+db.ref('.info/connected').on('value', snap => {
+  const dot = document.getElementById('statusDot');
+  const msg = document.getElementById('statusMsg');
+  if (snap.val()) {
+    dot.className = 'connected';
+    msg.textContent = '✅ Conectado — dados sincronizados em tempo real';
+  } else {
+    dot.className = 'disconnected';
+    msg.textContent = '⚠️ Sem conexão — tentando reconectar…';
+  }
+});
+
+// ── Helpers ──────────────────────────────────────────────────────
+function turmaOptions(selected) {
+  const opts = ['1º Ano A','1º Ano B','2º Ano A','2º Ano B','3º Ano A','3º Ano B',
+    '4º Ano A','4º Ano B','5º Ano A','5º Ano B','6º Ano A','6º Ano B',
+    '7º Ano A','7º Ano B','8º Ano A','8º Ano B','9º Ano A','9º Ano B'];
+  return opts.map(o => `<option value="${o}" ${o===selected?'selected':''}>${o}</option>`).join('');
+}
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className=''; }, 3200);
+}
+
+// ── Headers ──────────────────────────────────────────────────────
+function updateHeaders() {
+  const v2 = document.getElementById('col2Name').value || 'Coluna 1';
+  const v3 = document.getElementById('col3Name').value || 'Coluna 2';
+  const v4 = document.getElementById('col4Name').value || 'Coluna 3';
+  document.getElementById('th2').innerHTML = '🟢 ' + v2;
+  document.getElementById('th3').innerHTML = '🟡 ' + v3;
+  document.getElementById('th4').innerHTML = '🔴 ' + v4;
+  document.getElementById('sumLabel2').textContent = v2;
+  document.getElementById('sumLabel3').textContent = v3;
+  document.getElementById('sumLabel4').textContent = v4;
+}
+
+// ── Modal ────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('modalName').value = '';
+  const globalTurma = document.getElementById('turmaSel').value;
+  const mt = document.getElementById('modalTurma');
+  [...mt.options].forEach((o,i) => { if (o.value===globalTurma) mt.selectedIndex=i; });
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('modalName').focus(), 100);
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+document.getElementById('modalName').addEventListener('keydown', e => { if (e.key==='Enter') confirmAddRow(); });
+function confirmAddRow() {
+  const name = document.getElementById('modalName').value.trim();
+  if (!name) { document.getElementById('modalName').focus(); return; }
+  const turma = document.getElementById('modalTurma').value;
+  const reinc = isSuspensoExceto(name, null);
+  addRow({ name, turma, reinc });
+  closeModal();
+  if (reinc) { showToast('🔁 ATENÇÃO: ' + name + ' já foi suspenso ' + reinc + ' vez(es) — aluno REINCIDENTE!', 'warning'); alert('⚠️ Aluno REINCIDENTE!\n\n' + name + ' já foi suspenso ' + reinc + ' vez(es) anteriormente.'); }
+}
+
+// ── Add Row ──────────────────────────────────────────────────────
+function addRow(o = {}) {
+  rowCount++;
+  const id = rowCount;
+  const tbody = document.getElementById('tableBody');
+  const tr = document.createElement('tr');
+  tr.id = 'row_' + id;
+
+  function occCells(band, occId, checked, date, prof, sev) {
+    const chk = checked ? 'checked' : '';
+    const cls = checked ? ' is-checked' : '';
+    return `
+      <td class="${band}" style="text-align:center;padding:6px 8px;">
+        <div class="occ-wrap${cls}" id="${occId}">
+          <input type="checkbox" class="custom-check" ${chk}
+            onchange="onCheck(this,'${occId}','row_${id}'); scheduleRemoteSave();">
+          <select class="sev-select${sev==='grave'?' grave':''}" onchange="this.classList.toggle('grave',this.value==='grave'); updateRow('row_${id}'); scheduleRemoteSave();">
+            <option value="leve" ${sev!=='grave'?'selected':''}>Leve</option>
+            <option value="grave" ${sev==='grave'?'selected':''}>Grave</option>
+          </select>
+        </div>
+      </td>
+      <td class="${band}" style="padding:5px 7px;">
+        <div class="occ-wrap${cls}" id="${occId}_date_wrap">
+          <input class="date-input" type="text" placeholder="dd/mm/aaaa"
+            value="${esc(date)}" maxlength="10"
+            oninput="fmtDate(this); scheduleRemoteSave();">
+        </div>
+      </td>
+      <td class="${band}" style="padding:5px 7px;">
+        <div class="occ-wrap${cls}" id="${occId}_prof_wrap">
+          <input class="prof-input" type="text" placeholder="Prof. responsável…"
+            value="${esc(prof)}" oninput="scheduleRemoteSave();">
+        </div>
+      </td>`;
+  }
+
+  tr.innerHTML = `
+    <td class="td-name">
+      <input class="name-input" type="text" placeholder="Nome do aluno"
+        value="${esc(o.name||'')}" oninput="scheduleRemoteSave()" onchange="checkReincidente(this,'row_${id}')">
+      <div><span class="tag-susp" style="display:none">⛔ ALUNO SUSPENSO</span><span class="tag-reinc" style="${o.reinc?'':'display:none'}">🔁 REINCIDENTE — suspenso ${o.reinc||0} vez(es)</span></div>
+    </td>
+    <td style="text-align:center;padding:5px 7px;">
+      <select class="turma-select" onchange="scheduleRemoteSave()">
+        ${turmaOptions(o.turma||document.getElementById('turmaSel').value)}
+      </select>
+    </td>
+    ${occCells('bc2','occ2_'+id, o.c2||false, o.d2||'', o.p2||'', o.s2||'leve')}
+    ${occCells('bc3','occ3_'+id, o.c3||false, o.d3||'', o.p3||'', o.s3||'leve')}
+    ${occCells('bc4','occ4_'+id, o.c4||false, o.d4||'', o.p4||'', o.s4||'leve')}
+    <td><span class="total-badge total-0" id="total_${id}">0</span></td>
+    <td><button class="del-btn" onclick="deleteRow('row_${id}')" title="Remover">🗑️</button></td>
+  `;
+
+  if (o.reinc) tr.dataset.reinc = String(o.reinc);
+  if (o.counted) tr.dataset.counted = '1';
+  tbody.appendChild(tr);
+  updateRow('row_' + id);
+  updateSummary();
+  if (!_loading) scheduleRemoteSave();
+}
+
+function fmtDate(inp) {
+  let v = inp.value.replace(/\D/g,'');
+  if (v.length > 2)  v = v.slice(0,2) + '/' + v.slice(2);
+  if (v.length > 5)  v = v.slice(0,5) + '/' + v.slice(5);
+  inp.value = v.slice(0,10);
+}
+
+function onCheck(cb, occId, rowId) {
+  const wrapIds = [occId, occId+'_date_wrap', occId+'_prof_wrap'];
+  wrapIds.forEach(wid => {
+    const el = document.getElementById(wid);
+    if (el) { if (cb.checked) el.classList.add('is-checked'); else el.classList.remove('is-checked'); }
+  });
+  updateRow(rowId);
+}
+
+function updateRow(rowId) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const checks = row.querySelectorAll('.custom-check');
+  const sevs = row.querySelectorAll('.sev-select');
+  let total = 0, grave = false;
+  checks.forEach((c,i) => { if (c.checked) { total++; if (sevs[i]?.value==='grave') grave = true; } });
+  const susp = grave || total >= 3;
+  row.classList.toggle('row-susp', susp);
+  row.querySelector('.tag-susp').style.display = susp ? '' : 'none';
+  checks.forEach(c => { c.disabled = grave && !c.checked; });
+  if (susp) registrarSuspenso(row, grave);
+  if (susp) {
+    const nm = row.querySelector('.name-input')?.value.trim() || 'Aluno';
+    setTimeout(() => { if (row.isConnected) { row.remove(); updateSummary(); if (!_loading) { showToast('⛔ ' + nm + ' foi suspenso (' + (grave ? 'GRAVE' : '3 marcações') + ') — removido da lista.', 'warning'); scheduleRemoteSave(); } } }, _loading ? 0 : 600);
+  }
+  const badge = document.getElementById('total_' + rowId.split('_')[1]);
+  if (badge) { badge.textContent = total; badge.className = 'total-badge total-' + Math.min(total,3); }
+  updateSummary();
+}
+
+// ── Suspensão / Reincidência ─────────────────────────────────────
+let suspensos = {}; // nomes já suspensos (persistidos)
+function normName(n){ return String(n||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
+function getSusp(k){
+  let v = suspensos[k];
+  if (!v) return null;
+  if (typeof v !== 'object') { v = { nome: k, total: v === true ? 1 : v, graves: 0, leves: v === true ? 1 : v }; suspensos[k] = v; }
+  return v;
+}
+function registrarSuspenso(row, grave){
+  const nome = row.querySelector('.name-input')?.value.trim();
+  const k = normName(nome);
+  if (!k || row.dataset.counted === '1') return;
+  const v = getSusp(k) || { nome, total: 0, graves: 0, leves: 0 };
+  v.nome = nome; v.turma = row.querySelector('.turma-select')?.value || v.turma || '';
+  v.total++; if (grave) v.graves++; else v.leves++;
+  suspensos[k] = v;
+  row.dataset.counted = '1';
+  if (!_loading) scheduleRemoteSave();
+}
+function isSuspensoExceto(nome, rowId){
+  const k = normName(nome); if (!k) return 0;
+  const v = getSusp(k);
+  return v ? v.total : 0;
+}
+function marcarReinc(row, on){
+  const t = row.querySelector('.tag-reinc');
+  if (on) { row.dataset.reinc = String(on); t.textContent = '🔁 REINCIDENTE — suspenso ' + on + ' vez(es)'; }
+  else delete row.dataset.reinc;
+  t.style.display = on ? '' : 'none';
+}
+function checkReincidente(inp, rowId){
+  const row = document.getElementById(rowId);
+  const reinc = isSuspensoExceto(inp.value, rowId);
+  marcarReinc(row, reinc);
+  if (reinc) { showToast('🔁 ATENÇÃO: ' + inp.value.trim() + ' já foi suspenso ' + reinc + ' vez(es) — aluno REINCIDENTE!', 'warning'); alert('⚠️ Aluno REINCIDENTE!\n\n' + inp.value.trim() + ' já foi suspenso ' + reinc + ' vez(es) anteriormente.'); }
+  scheduleRemoteSave();
+}
+
+function abrirSuspensos(){
+  const lista = Object.keys(suspensos).map(getSusp).filter(Boolean).sort((a,b)=>b.total-a.total);
+  document.getElementById('suspBody').innerHTML = lista.length ? lista.map(v => `
+    <tr><td style="text-align:left;padding:6px 8px;font-weight:700;">${esc(v.nome)}</td>
+    <td style="padding:6px 8px;">${esc(v.turma||'-')}</td>
+    <td style="padding:6px 8px;font-weight:800;">${v.total}</td>
+    <td style="padding:6px 8px;">${v.leves}</td>
+    <td style="padding:6px 8px;">${v.graves}</td>
+    <td style="padding:6px 8px;">${v.graves ? '<span class="tag-susp">Recebeu GRAVE</span>' : '<span class="tag-reinc" style="background:#1e7a1e">Só leves</span>'}</td></tr>`).join('')
+    : '<tr><td colspan="6" style="padding:14px;color:#4a6a8c;">Nenhum aluno suspenso até agora.</td></tr>';
+  document.getElementById('suspOverlay').classList.add('open');
+}
+function fecharSuspensos(){ document.getElementById('suspOverlay').classList.remove('open'); }
+
+function deleteRow(rowId) {
+  document.getElementById(rowId)?.remove();
+  updateSummary();
+  scheduleRemoteSave();
+}
+
+function clearChecks() {
+  if (!confirm('Limpar todas as marcações, datas e professores?')) return;
+  document.querySelectorAll('.custom-check').forEach(c => { c.checked = false; c.disabled = false; });
+  document.querySelectorAll('.sev-select').forEach(s => { s.value = 'leve'; s.classList.remove('grave'); });
+  document.querySelectorAll('#tableBody tr').forEach(tr => { tr.classList.remove('row-susp'); const t=tr.querySelector('.tag-susp'); if(t) t.style.display='none'; });
+  document.querySelectorAll('.prof-input, .date-input').forEach(i => { i.value = ''; });
+  document.querySelectorAll('.occ-wrap').forEach(d => d.classList.remove('is-checked'));
+  document.querySelectorAll('[id^="total_"]').forEach(b => { b.textContent='0'; b.className='total-badge total-0'; });
+  updateSummary();
+  scheduleRemoteSave();
+}
+
+function updateSummary() {
+  const rows = document.querySelectorAll('#tableBody tr');
+  let c2=0,c3=0,c4=0,total=0,visible=0;
+  rows.forEach(row => {
+    if (row.style.display==='none') return;
+    visible++;
+    const checks = row.querySelectorAll('.custom-check');
+    if (checks[0]?.checked) c2++;
+    if (checks[1]?.checked) c3++;
+    if (checks[2]?.checked) c4++;
+    const b = row.querySelector('[id^="total_"]');
+    if (b) total += parseInt(b.textContent)||0;
+  });
+  const filtro = document.getElementById('filtroTurma')?.value || '';
+  const labelTurma = filtro ? ` (${filtro})` : '';
+  document.getElementById('sumAlunos').textContent = visible + (rows.length !== visible ? ` / ${rows.length}` : '');
+  document.getElementById('sumAlunosLabel').textContent = 'Alunos' + labelTurma;
+  document.getElementById('sumCol2').textContent = c2;
+  document.getElementById('sumCol3').textContent = c3;
+  document.getElementById('sumCol4').textContent = c4;
+  document.getElementById('sumTotal').textContent = total;
+}
+
+function filtrarTurma() {
+  const filtro = document.getElementById('filtroTurma').value;
+  document.querySelectorAll('#tableBody tr').forEach(tr => {
+    if (!filtro) { tr.style.display = ''; return; }
+    const sel = tr.querySelector('.turma-select');
+    tr.style.display = (sel && sel.value === filtro) ? '' : 'none';
+  });
+  updateSummary();
+}
+
+// ── Coletar dados da tabela ──────────────────────────────────────
+function gatherData() {
+  const rows = [];
+  document.querySelectorAll('#tableBody tr').forEach(tr => {
+    const nameInp = tr.querySelector('.name-input');
+    const checks  = tr.querySelectorAll('.custom-check');
+    const dates   = tr.querySelectorAll('.date-input');
+    const profs   = tr.querySelectorAll('.prof-input');
+    const turmaEl = tr.querySelector('.turma-select');
+    const sevs    = tr.querySelectorAll('.sev-select');
+    rows.push({
+      name: nameInp?.value||'',
+      turma: turmaEl?.value||'',
+      c2: checks[0]?.checked||false, d2: dates[0]?.value||'', p2: profs[0]?.value||'',
+      c3: checks[1]?.checked||false, d3: dates[1]?.value||'', p3: profs[1]?.value||'',
+      c4: checks[2]?.checked||false, d4: dates[2]?.value||'', p4: profs[2]?.value||'',
+      s2: sevs[0]?.value||'leve', s3: sevs[1]?.value||'leve', s4: sevs[2]?.value||'leve',
+      reinc: parseInt(tr.dataset.reinc)||0,
+      counted: tr.dataset.counted === '1',
+    });
+  });
+  return {
+    turma: document.getElementById('turmaSel').value,
+    col2:  document.getElementById('col2Name').value,
+    col3:  document.getElementById('col3Name').value,
+    col4:  document.getElementById('col4Name').value,
+    rows,
+    suspensos,
+    updatedAt: Date.now()
+  };
+}
+
+// ── Salvar no Firebase (com debounce de 1,5s) ────────────────────
+function scheduleRemoteSave() {
+  if (_loading) return;
+  _lastLocalChange = Date.now();
+  setStatus('saving', '💾 Salvando alterações…');
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(doRemoteSave, 1500);
+}
+
+function doRemoteSave() {
+  const data = gatherData();
+  dataRef.set(data)
+    .then(() => {
+      setStatus('connected', '✅ Conectado — dados sincronizados em tempo real');
+      showToast('✅ Dados salvos com sucesso!', 'success');
+    })
+    .catch(err => {
+      setStatus('disconnected', '❌ Erro ao salvar: ' + err.message);
+      showToast('❌ Erro ao salvar. Verifique a conexão.', 'warning');
+    });
+}
+
+function setStatus(cls, msg) {
+  document.getElementById('statusDot').className = cls;
+  document.getElementById('statusMsg').textContent = msg;
+}
+
+// ── Carregar dados do Firebase ───────────────────────────────────
+function applyData(data) {
+  _loading = true;
+  document.getElementById('tableBody').innerHTML = '';
+  rowCount = 0;
+  suspensos = data.suspensos || {};
+
+  const sel = document.getElementById('turmaSel');
+  if (data.turma) [...sel.options].forEach((o,i) => { if (o.value===data.turma) sel.selectedIndex=i; });
+  if (data.col2) document.getElementById('col2Name').value = data.col2;
+  if (data.col3) document.getElementById('col3Name').value = data.col3;
+  if (data.col4) document.getElementById('col4Name').value = data.col4;
+  updateHeaders();
+
+  (data.rows||[]).forEach(r => addRow(r));
+  _loading = false;
+  updateSummary();
+}
+
+// ── Listener em tempo real ───────────────────────────────────────
+// Atualiza a tela quando OUTRO usuário salvar dados
+let firstLoad = true;
+dataRef.on('value', snap => {
+  const data = snap.val();
+
+  if (firstLoad) {
+    firstLoad = false;
+    document.getElementById('loadingOverlay').style.display = 'none';
+
+    if (data) {
+      applyData(data);
+      showToast('📂 Dados carregados do servidor!', 'info');
+    } else {
+      // Banco vazio: inserir dados de exemplo
+      ['Ana Clara Silva','Bruno Oliveira','Carla Mendes','Daniel Costa','Eduarda Ferreira',
+       'Felipe Santos','Gabriela Lima','Henrique Souza','Isabela Martins','João Pedro Alves']
+       .forEach(n => addRow({ name: n }));
+    }
+    return;
+  }
+
+  // Atualização vinda de outro usuário
+  // Só aplica se o usuário local não fez uma edição nos últimos 3s
+  const timeSinceLocal = Date.now() - _lastLocalChange;
+  if (data && timeSinceLocal > 3000) {
+    applyData(data);
+    showToast('🔄 Dados atualizados por outro usuário', 'info');
+  }
+});
+
+updateHeaders();
+</script>
+</body>
+</html>
